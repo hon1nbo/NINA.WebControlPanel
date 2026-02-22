@@ -59,23 +59,16 @@ const RTSPViewer: React.FC<RTSPViewerProps> = ({ streams, isConnected, hideHeade
       return {
         width: '100%',
         maxWidth: '380px', // Optimized size for allsky content
-        aspectRatio: '1',
+        aspectRatio: '1 / 1',
         margin: '0 auto', // Center the container
-        // Fallback for older browsers
-        '@supports not (aspect-ratio: 1)': {
-          height: '380px'
-        }
+        // Padding-bottom fallback ensures Safari renders square
+        position: 'relative' as const,
       };
     } else {
       return {
         width: '100%',
-        aspectRatio: '16/9',
-        // Fallback for older browsers  
-        '@supports not (aspect-ratio: 16/9)': {
-          paddingBottom: '56.25%', // 16:9 aspect ratio
-          height: 0,
-          position: 'relative' as const
-        }
+        aspectRatio: '16 / 9',
+        position: 'relative' as const,
       };
     }
   };
@@ -94,6 +87,7 @@ const RTSPViewer: React.FC<RTSPViewerProps> = ({ streams, isConnected, hideHeade
       return {
         ...baseStyle,
         objectFit: 'contain' as const,
+        WebkitObjectFit: 'contain' as any,
         // Ensure the circular/square content is properly contained
         maxWidth: '100%',
         maxHeight: '100%'
@@ -101,7 +95,8 @@ const RTSPViewer: React.FC<RTSPViewerProps> = ({ streams, isConnected, hideHeade
     } else {
       return {
         ...baseStyle,
-        objectFit: 'cover' as const
+        objectFit: 'cover' as const,
+        WebkitObjectFit: 'cover' as any,
       };
     }
   };
@@ -198,6 +193,7 @@ const RTSPViewer: React.FC<RTSPViewerProps> = ({ streams, isConnected, hideHeade
 
       {/* Dynamic Video Container */}
       <Box 
+        className={getStreamType(activeStream) === 'allsky' ? 'video-container-allsky' : 'video-container-widescreen'}
         style={{ 
           transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
           opacity: isTransitioning ? 0.8 : 1,

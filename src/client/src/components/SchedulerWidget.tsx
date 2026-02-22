@@ -153,7 +153,7 @@ export const TargetSchedulerWidget: React.FC<TargetSchedulerProps> = ({ onRefres
                           {project.name}
                         </Text>
                       </HoverCard.Trigger>
-                      <HoverCard.Content size="3" style={{ maxWidth: '500px', width: '500px' }}>
+                      <HoverCard.Content size="3" style={{ maxWidth: 'min(500px, calc(100vw - 32px))', width: 'min(500px, calc(100vw - 32px))' }}>
                         <Flex direction="column" gap="2">
                           <Heading size="3">{project.name}</Heading>
                           {project.description && (
@@ -232,20 +232,20 @@ export const TargetSchedulerWidget: React.FC<TargetSchedulerProps> = ({ onRefres
                                         </Badge>
                                       </Flex>
                                       <Flex direction="column" gap="1">
-                                        <Flex justify="between">
+                                        <Flex justify="between" wrap="wrap" gap="1">
                                           <Text size="1" color="gray">Images:</Text>
                                           <Text size="1">{filter.accepted}/{filter.desired} ({filter.remainingImages} left)</Text>
                                         </Flex>
-                                        <Flex justify="between">
+                                        <Flex justify="between" wrap="wrap" gap="1">
                                           <Text size="1" color="gray">Integration:</Text>
-                                          <Text size="1">
+                                          <Text size="1" style={{ textAlign: 'right' }}>
                                             {formatTime(integrationMinutes)} / {formatTime(desiredMinutes)}
                                             {remainingMinutes > 0 && (
                                               <span style={{ color: 'var(--amber-9)' }}> ({formatTime(remainingMinutes)} left)</span>
                                             )}
                                           </Text>
                                         </Flex>
-                                        <Flex justify="between">
+                                        <Flex justify="between" wrap="wrap" gap="1">
                                           <Text size="1" color="gray">Exposure:</Text>
                                           <Text size="1">{filter.exposureTime}s</Text>
                                         </Flex>
@@ -338,7 +338,7 @@ export const TargetSchedulerWidget: React.FC<TargetSchedulerProps> = ({ onRefres
                           })()}% complete
                         </span>
                       </HoverCard.Trigger>
-                      <HoverCard.Content size="2" style={{ width: '320px', maxWidth: '320px' }}>
+                      <HoverCard.Content size="2" style={{ width: 'min(320px, calc(100vw - 32px))', maxWidth: 'min(320px, calc(100vw - 32px))' }}>
                         <Flex direction="column" gap="2">
                           <Heading size="2">Project Progress {project.targets?.length > 1 && `(${project.targets.length} targets)`}</Heading>
                           <Separator />

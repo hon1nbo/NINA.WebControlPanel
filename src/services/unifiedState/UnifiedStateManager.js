@@ -19,10 +19,12 @@ class UnifiedStateManager {
 
   /**
    * Get the current complete state
+   * @param {boolean} [clone=true] - Whether to return a deep copy (safe) or direct reference (fast)
    * @returns {UnifiedState}
    */
-  getState() {
-    return JSON.parse(JSON.stringify(this.state)); // Return deep copy
+  getState(clone = true) {
+    if (!clone) return this.state; // Fast path for internal read-only access
+    return JSON.parse(JSON.stringify(this.state));
   }
 
   /**
@@ -30,8 +32,7 @@ class UnifiedStateManager {
    * @param {UnifiedState} newState
    */
   setState(newState) {
-    this.state = JSON.parse(JSON.stringify(newState)); // Deep copy
-    console.log('🔄 State fully replaced');
+    this.state = JSON.parse(JSON.stringify(newState));
   }
 
   /**
@@ -39,6 +40,10 @@ class UnifiedStateManager {
    * @param {Partial<CurrentSession>} partial
    */
   updateSession(partial) {
+    // Suppress verbose logging during seeding
+    if (this._seeding) {
+      // Silently update
+    }
     if (!this.state.currentSession) {
       // Create new session with defaults
       this.state.currentSession = {
@@ -72,7 +77,6 @@ class UnifiedStateManager {
 
     // Deep merge partial into current session
     this.state.currentSession = this._deepMerge(this.state.currentSession, partial);
-    console.log('📝 Session updated');
   }
 
   /**
@@ -155,16 +159,20 @@ class UnifiedStateManager {
    * @param {Object|null} changed
    */
   notifyListeners(updateKind, updateReason, changed = null) {
+    // Skip broadcasts when seeding is in progress
+    if (this._seeding) return;
+
+    if (this.listeners.length === 0) return; // No listeners, skip serialization
+
+    // Serialize state once for all listeners instead of deep-copying per listener
     const message = {
       schemaVersion: 1,
       timestamp: new Date().toISOString(),
       updateKind,
       updateReason,
       changed,
-      state: this.getState()
+      state: this.getState(false) // Use direct reference — callers serialize for WS anyway
     };
-
-    console.log(`📢 Broadcasting: ${updateKind} - ${updateReason}`);
     
     this.listeners.forEach(listener => {
       try {

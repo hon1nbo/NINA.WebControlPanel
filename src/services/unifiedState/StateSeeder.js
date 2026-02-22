@@ -43,6 +43,9 @@ class StateSeeder {
       
       console.log(`📚 Processing ${recentEvents.length} most recent events (of ${events.length} total)...`);
 
+      // Suppress broadcasts during seeding (would flood listeners with 100 updates)
+      this.stateManager._seeding = true;
+
       // Process each event through the normalizer (oldest to newest)
       let processedCount = 0;
       for (const event of recentEvents) {
@@ -53,6 +56,9 @@ class StateSeeder {
           console.error(`❌ Error processing historical event:`, error);
         }
       }
+
+      // Re-enable broadcasts and send one final state sync
+      this.stateManager._seeding = false;
 
       console.log(`✅ Seeded state from ${processedCount} events`);
       

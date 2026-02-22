@@ -17,9 +17,9 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ onRefresh, hideHeader = f
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchWeatherData = async () => {
+  const fetchWeatherData = async (isRefresh = false) => {
     try {
-      setLoading(true);
+      if (!isRefresh) setLoading(true);
       setError(null);
       
       const response = await fetch(getApiUrl('nina/weather'));
@@ -39,6 +39,9 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ onRefresh, hideHeader = f
 
   useEffect(() => {
     fetchWeatherData();
+    // Refresh weather data every 5 minutes — weather changes slowly
+    const interval = setInterval(() => fetchWeatherData(true), 5 * 60 * 1000);
+    return () => clearInterval(interval);
   }, []);
 
   const formatTemp = (temp: number | null) => {
@@ -208,4 +211,4 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ onRefresh, hideHeader = f
   );
 };
 
-export default WeatherWidget;
+export default React.memo(WeatherWidget);

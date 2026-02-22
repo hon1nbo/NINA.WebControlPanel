@@ -6,6 +6,14 @@
 
 const express = require('express');
 const router = express.Router();
+const { ConfigDatabase } = require('../configDatabase');
+
+// Single shared instance instead of creating one per request
+let _configDb = null;
+function getConfigDb() {
+  if (!_configDb) _configDb = new ConfigDatabase();
+  return _configDb;
+}
 
 /**
  * Check if Pegasus Unity Platform is running
@@ -13,9 +21,7 @@ const router = express.Router();
  */
 router.get('/status', async (req, res) => {
   try {
-    const { ConfigDatabase } = require('../configDatabase');
-    const configDb = new ConfigDatabase();
-    const config = configDb.getConfig();
+    const config = getConfigDb().getConfig();
     
     const baseUrl = config['pegasus.unityBaseUrl'] || 'http://localhost:32000';
     
@@ -51,9 +57,7 @@ router.get('/status', async (req, res) => {
  */
 router.get('/devices', async (req, res) => {
   try {
-    const { ConfigDatabase } = require('../configDatabase');
-    const configDb = new ConfigDatabase();
-    const config = configDb.getConfig();
+    const config = getConfigDb().getConfig();
     
     const baseUrl = config['pegasus.unityBaseUrl'] || 'http://localhost:32000';
     
@@ -107,9 +111,7 @@ router.get('/report', async (req, res) => {
       });
     }
     
-    const { ConfigDatabase } = require('../configDatabase');
-    const configDb = new ConfigDatabase();
-    const config = configDb.getConfig();
+    const config = getConfigDb().getConfig();
     
     const baseUrl = config['pegasus.unityBaseUrl'] || 'http://localhost:32000';
     const url = `${baseUrl}/Driver/${deviceType}/Report?DriverUniqueKey=${uniqueKey}`;
@@ -154,9 +156,7 @@ router.get('/power', async (req, res) => {
       });
     }
     
-    const { ConfigDatabase } = require('../configDatabase');
-    const configDb = new ConfigDatabase();
-    const config = configDb.getConfig();
+    const config = getConfigDb().getConfig();
     
     const baseUrl = config['pegasus.unityBaseUrl'] || 'http://localhost:32000';
     const url = `${baseUrl}/Driver/${deviceType}/Report/Power?DriverUniqueKey=${uniqueKey}`;
@@ -194,9 +194,7 @@ router.get('/consumption', async (req, res) => {
       });
     }
     
-    const { ConfigDatabase } = require('../configDatabase');
-    const configDb = new ConfigDatabase();
-    const config = configDb.getConfig();
+    const config = getConfigDb().getConfig();
     
     const baseUrl = config['pegasus.unityBaseUrl'] || 'http://localhost:32000';
     const url = `${baseUrl}/Driver/${deviceType}/Report/PowerConsumption?DriverUniqueKey=${uniqueKey}`;
@@ -225,9 +223,7 @@ router.get('/consumption', async (req, res) => {
  */
 router.get('/telemetry', async (req, res) => {
   try {
-    const { ConfigDatabase } = require('../configDatabase');
-    const configDb = new ConfigDatabase();
-    const config = configDb.getConfig();
+    const config = getConfigDb().getConfig();
     
     const baseUrl = config['pegasus.unityBaseUrl'] || 'http://localhost:32000';
     

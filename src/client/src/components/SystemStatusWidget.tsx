@@ -25,7 +25,6 @@ const SystemStatusWidget: React.FC<SystemStatusProps> = memo(({ hideHeader = fal
       setError(null);
       // Use lite endpoint for performance, full endpoint every 5th call or initial load
       const endpoint = useLite ? 'system/status/lite' : 'system/status';
-      console.log(`🔍 SystemStatusWidget fetching: ${endpoint} (useLite: ${useLite})`);
       const response = await fetch(getApiUrl(endpoint));
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -59,7 +58,6 @@ const SystemStatusWidget: React.FC<SystemStatusProps> = memo(({ hideHeader = fal
   }, []); // No dependencies to prevent infinite loops
 
   useEffect(() => {
-    console.log('🚀 SystemStatusWidget useEffect mounting');
     // Initial load: always fetch full data
     fetchSystemStatus(false);
     
@@ -69,14 +67,12 @@ const SystemStatusWidget: React.FC<SystemStatusProps> = memo(({ hideHeader = fal
         const newCount = prev + 1;
         // Every 5th call (or first call), fetch full data
         const shouldUseFull = newCount % 5 === 0;
-        console.log(`⏰ SystemStatusWidget interval tick ${newCount}, shouldUseFull: ${shouldUseFull}, useLite: ${!shouldUseFull}`);
         fetchSystemStatus(!shouldUseFull); // useLite = !shouldUseFull (lite on most calls, full every 5th)
         return newCount;
       });
     }, 45000); // 45 seconds interval
     
     return () => {
-      console.log('🧹 SystemStatusWidget useEffect cleanup');
       clearInterval(interval);
     };
   }, []); // Empty dependency to prevent infinite loops

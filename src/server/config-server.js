@@ -3,6 +3,7 @@
 
 const express = require('express');
 const cors = require('cors');
+const compression = (() => { try { return require('compression'); } catch { return null; } })();
 const http = require('http');
 const path = require('path');
 const WebSocket = require('ws');
@@ -124,17 +125,23 @@ async function initializeServer() {
 
   // Middleware
   app.use(cors());
+  if (compression) {
+    app.use(compression()); // Gzip responses — critical for mobile/VPN
+  }
 
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-  // Request logging middleware
+  // Request logging middleware (only log slow requests to reduce console noise)
   app.use((req, res, next) => {
     const start = Date.now();
 
     res.on('finish', () => {
       const duration = Date.now() - start;
-      console.log(`${req.method} ${req.path} - ${res.statusCode} (${duration}ms)`);
+      // Only log slow requests (>500ms) or errors to reduce event loop blocking
+      if (duration > 500 || res.statusCode >= 400) {
+        console.log(`${req.method} ${req.path} - ${res.statusCode} (${duration}ms)`);
+      }
     });
 
     next();
@@ -276,20 +283,22 @@ async function initializeServer() {
 
   // Subscribe to unified state changes and broadcast to all connected frontend clients
   unifiedStateSystem.subscribe((message) => {
-    // Broadcast state updates based on message type
-    if (message.type === 'session' || message.type === 'fullSync') {
-      const state = unifiedStateSystem.getState();
-      broadcastSessionUpdate(state.currentSession || {});
+    // Broadcast state updates — use state from message (already available, no extra copy)
+    if (message.updateKind === 'session' || message.updateKind === 'fullSync') {
+      broadcastSessionUpdate(message.state?.currentSession || {});
     }
 
     // Also broadcast as NINA event for backward compatibility
-    if (message.eventType) {
-      broadcastNINAEvent(message.eventType, message.data);
+    if (message.changed?.meta?.eventType) {
+      broadcastNINAEvent(message.changed.meta.eventType, message.changed.meta);
     }
   });
 
   // Broadcast NINA events to all connected frontend clients
   const broadcastNINAEvent = (eventType, eventData) => {
+    const totalClients = ninaClients.size + unifiedClients.size;
+    if (totalClients === 0) return; // Skip serialization when no one is listening
+
     const message = JSON.stringify({
       type: 'nina-event',
       data: {
@@ -300,8 +309,6 @@ async function initializeServer() {
       },
       timestamp: new Date().toISOString()
     });
-
-    console.log('📡 Broadcasting NINA event to', (ninaClients.size + unifiedClients.size), 'clients:', eventType);
 
     // Broadcast to original NINA clients (legacy support)
     ninaClients.forEach(client => {
@@ -324,13 +331,14 @@ async function initializeServer() {
 
   // Broadcast session updates to unified clients
   const broadcastSessionUpdate = (sessionData) => {
+    const totalClients = sessionClients.size + unifiedClients.size;
+    if (totalClients === 0) return; // Skip serialization when no one is listening
+
     const message = JSON.stringify({
       type: 'sessionUpdate',
       data: sessionData,
       timestamp: new Date().toISOString()
     });
-
-    console.log('📡 Broadcasting session update to', (sessionClients.size + unifiedClients.size), 'clients');
 
     // Broadcast to original session clients (legacy support)
     sessionClients.forEach(client => {

@@ -14,6 +14,79 @@ import type { PegasusPowerWidgetProps, AggregateReportMessage } from '../interfa
 import { getApiUrl } from '../config/api';
 import type { ConfigData } from '../interfaces/config';
 
+// Circular gauge component extracted outside PegasusPowerWidget to prevent
+// unmount/remount on every parent re-render (React sees new component type otherwise)
+const CircularGauge = memo(({ value, max, label, unit, color, size = 120 }: {
+  value: number;
+  max: number;
+  label: string;
+  unit: string;
+  color: string;
+  size?: number;
+}) => {
+  const percentage = Math.min((value / max) * 100, 100);
+  const radius = (size - 20) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (percentage / 100) * circumference;
+
+  const colorMap: { [key: string]: string } = {
+    green: 'var(--green-9)',
+    blue: 'var(--blue-9)',
+    orange: 'var(--orange-9)',
+    red: 'var(--red-9)',
+    yellow: 'var(--yellow-9)',
+    cyan: 'var(--cyan-9)',
+    gray: 'var(--gray-9)'
+  };
+
+  const strokeColor = colorMap[color] || colorMap.blue;
+
+  return (
+    <Flex direction="column" align="center" gap="2" style={{ minWidth: `${size}px` }}>
+      <Box position="relative" style={{ width: size, height: size }}>
+        <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke="var(--gray-6)"
+            strokeWidth="10"
+            fill="transparent"
+          />
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke={strokeColor}
+            strokeWidth="10"
+            fill="transparent"
+            strokeDasharray={circumference}
+            strokeDashoffset={strokeDashoffset}
+            strokeLinecap="round"
+            style={{ transition: 'stroke-dashoffset 0.5s ease' }}
+          />
+        </svg>
+        <Flex
+          position="absolute"
+          style={{
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0
+          }}
+          align="center"
+          justify="center"
+          direction="column"
+        >
+          <Text size="6" weight="bold">{value.toFixed(1)}</Text>
+          <Text size="1" color="gray">{unit}</Text>
+        </Flex>
+      </Box>
+      <Text size="2" color="gray" weight="medium">{label}</Text>
+    </Flex>
+  );
+});
+
 const PegasusPowerWidget: React.FC<PegasusPowerWidgetProps> = memo(({ widgetId }) => {
   const [reportData, setReportData] = useState<AggregateReportMessage | null>(null);
   const [config, setConfig] = useState<ConfigData | null>(null);
@@ -123,98 +196,49 @@ const PegasusPowerWidget: React.FC<PegasusPowerWidgetProps> = memo(({ widgetId }
   useEffect(() => {
     fetchDeviceReport();
 
-    // Get refresh interval from config (default 5000ms)
+    // Poll every 30s — power metrics don't change rapidly, saves bandwidth over VPN
     const interval = setInterval(() => {
       fetchDeviceReport();
-    }, 5000);
+    }, 30000);
 
     return () => clearInterval(interval);
-  }, [fetchDeviceReport]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run once on mount — fetchDeviceReport handles its own deps internally
 
-  // Circular gauge component (inspired by Pegasus Unity but with our Radix style)
-  const CircularGauge = ({ value, max, label, unit, color, size = 120 }: {
-    value: number;
-    max: number;
-    label: string;
-    unit: string;
-    color: string;
-    size?: number;
-  }) => {
-    const percentage = Math.min((value / max) * 100, 100);
-    const radius = (size - 20) / 2;
-    const circumference = 2 * Math.PI * radius;
-    const strokeDashoffset = circumference - (percentage / 100) * circumference;
-
-    // Color mapping to Radix colors
-    const colorMap: { [key: string]: string } = {
-      green: 'var(--green-9)',
-      blue: 'var(--blue-9)',
-      orange: 'var(--orange-9)',
-      red: 'var(--red-9)',
-      yellow: 'var(--yellow-9)',
-      cyan: 'var(--cyan-9)',
-      gray: 'var(--gray-9)'
-    };
-
-    const strokeColor = colorMap[color] || colorMap.blue;
-
-    return (
-      <Flex direction="column" align="center" gap="2" style={{ minWidth: `${size}px` }}>
-        <Box position="relative" style={{ width: size, height: size }}>
-          <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
-            {/* Background circle */}
-            <circle
-              cx={size / 2}
-              cy={size / 2}
-              r={radius}
-              stroke="var(--gray-6)"
-              strokeWidth="10"
-              fill="transparent"
-            />
-            {/* Progress circle */}
-            <circle
-              cx={size / 2}
-              cy={size / 2}
-              r={radius}
-              stroke={strokeColor}
-              strokeWidth="10"
-              fill="transparent"
-              strokeDasharray={circumference}
-              strokeDashoffset={strokeDashoffset}
-              strokeLinecap="round"
-              style={{ transition: 'stroke-dashoffset 0.5s ease' }}
-            />
-          </svg>
-          {/* Center text */}
-          <Flex
-            position="absolute"
-            style={{
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0
-            }}
-            align="center"
-            justify="center"
-            direction="column"
-          >
-            <Text size="6" weight="bold">{value.toFixed(1)}</Text>
-            <Text size="1" color="gray">{unit}</Text>
-          </Flex>
-        </Box>
-        <Text size="2" color="gray" weight="medium">{label}</Text>
-      </Flex>
-    );
-  };
-
-  // Format uptime from TimeSpan format
+  // Format uptime from .NET TimeSpan format: "days.hours:minutes:seconds.ticks"
   const formatUptime = (upTime: string): string => {
     if (!upTime) return 'N/A';
-    const parts = upTime.split(':');
-    if (parts.length >= 3) {
-      const hours = parseInt(parts[0]);
-      const minutes = parseInt(parts[1]);
-      return `${hours}h ${minutes}m`;
+    try {
+      let days = 0;
+      let timePart = upTime;
+
+      // .NET TimeSpan: "d.hh:mm:ss" or "hh:mm:ss"
+      if (timePart.includes('.')) {
+        const dotIndex = timePart.indexOf('.');
+        const beforeDot = timePart.substring(0, dotIndex);
+        const afterDot = timePart.substring(dotIndex + 1);
+        // If beforeDot is a plain number and afterDot contains ':', then it's days.hours:min:sec
+        if (afterDot.includes(':') && !isNaN(Number(beforeDot))) {
+          days = parseInt(beforeDot) || 0;
+          timePart = afterDot;
+        }
+      }
+
+      const parts = timePart.split(':');
+      if (parts.length >= 2) {
+        const hours = parseInt(parts[0]) || 0;
+        const minutes = parseInt(parts[1]) || 0;
+        const totalHours = days * 24 + hours;
+        
+        if (days > 0) {
+          return hours > 0 || minutes > 0
+            ? `${days}d ${hours}h ${minutes}m`
+            : `${days}d`;
+        }
+        return `${totalHours}h ${minutes}m`;
+      }
+    } catch {
+      // Fall through to raw value
     }
     return upTime;
   };

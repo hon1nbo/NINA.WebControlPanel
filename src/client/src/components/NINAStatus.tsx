@@ -78,8 +78,6 @@ const NINAStatus: React.FC<NINAStatusProps> = ({ onRefresh, hideHeader = false }
       const equipmentId = lastUpdate.changed?.meta?.equipmentId || 'unknown';
       const status = lastUpdate.changed?.meta?.status || lastUpdate.updateReason;
       
-      console.log(`🔧 Equipment event detected: ${equipmentId} - ${status}`);
-      
       // Refresh equipment status
       setRefreshing(true);
       fetchEquipmentStatus();
@@ -221,4 +219,4 @@ const NINAStatus: React.FC<NINAStatusProps> = ({ onRefresh, hideHeader = false }
   );
 };
 
-export default NINAStatus;
+export default React.memo(NINAStatus);

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Flex, Box, Button, Badge, Heading, Text } from '@radix-ui/themes';
 import { Responsive, WidthProvider, Layout } from 'react-grid-layout';
 import NINAStatus from './NINAStatus';
@@ -63,6 +63,114 @@ const getGridLayout = (widgets: WidgetConfig[]): Layout[] => {
   }));
 };
 
+// Extracted desktop grid layout to avoid re-creating JSX on every Dashboard render
+interface DesktopGridLayoutProps {
+  widgetConfig: WidgetConfig[];
+  isEditMode: boolean;
+  layoutLoading: boolean;
+  gridLayoutProps: typeof gridLayoutProps;
+  responsiveProps: typeof responsiveProps;
+  handleLayoutChange: (layout: Layout[], layouts: { [key: string]: Layout[] }) => void;
+  renderWidget: (config: WidgetConfig) => React.ReactNode;
+  handleToggleWidgetVisibility: (id: string, currentlyEnabled: boolean, e: React.MouseEvent) => void;
+}
+
+const DesktopGridLayout = React.memo<DesktopGridLayoutProps>(({
+  widgetConfig,
+  isEditMode,
+  layoutLoading,
+  gridLayoutProps: glProps,
+  responsiveProps: rProps,
+  handleLayoutChange,
+  renderWidget,
+  handleToggleWidgetVisibility,
+}) => {
+  // Compute visible widgets once
+  const visibleWidgets = useMemo(
+    () => isEditMode ? widgetConfig : widgetConfig.filter(w => w.enabled !== false),
+    [widgetConfig, isEditMode]
+  );
+
+  // Compute grid layout once instead of 5x per render
+  const layout = useMemo(() => getGridLayout(visibleWidgets), [visibleWidgets]);
+
+  const layouts = useMemo(() => ({
+    lg: layout,
+    md: layout,
+    sm: layout,
+    xs: layout,
+    xxs: layout,
+  }), [layout]);
+
+  if (layoutLoading) {
+    return (
+      <Box style={{ padding: '1.5rem' }}>
+        <Flex align="center" justify="center" style={{ minHeight: '400px' }}>
+          <ReloadIcon className="loading-spinner" />
+          <Text ml="2">Loading layout...</Text>
+        </Flex>
+      </Box>
+    );
+  }
+
+  return (
+    <Box style={{ padding: '1.5rem' }}>
+      <ResponsiveGridLayout
+        {...glProps}
+        {...rProps}
+        layouts={layouts}
+        onLayoutChange={handleLayoutChange}
+        isDraggable={isEditMode}
+        isResizable={isEditMode}
+        draggableHandle={isEditMode ? ".drag-handle" : ".disabled-drag-handle"}
+        margin={[24, 24]}
+        containerPadding={[0, 0]}
+      >
+        {visibleWidgets.map((config) => (
+          <div key={config.layout.i} className={`widget-container ${isEditMode ? 'edit-mode' : 'view-mode'} ${!config.enabled && isEditMode ? 'widget-hidden' : ''}`}>
+            {isEditMode && (
+              <div className="drag-handle">
+                <Flex align="center" gap="2" justify="between">
+                  <Flex align="center" gap="2">
+                    <DragHandleDots2Icon width="14" height="14" />
+                    <Text size="2" weight="medium">{config.title}</Text>
+                  </Flex>
+                  <Button
+                    size="1"
+                    variant="ghost"
+                    color={config.enabled !== false ? "gray" : "red"}
+                    onClick={(e) => handleToggleWidgetVisibility(config.id, config.enabled !== false, e)}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    {config.enabled !== false ? <EyeOpenIcon width="14" height="14" /> : <EyeClosedIcon width="14" height="14" />}
+                  </Button>
+                </Flex>
+              </div>
+            )}
+            {!isEditMode && (
+              <div className="widget-header">
+                <Text size="2" weight="medium" style={{ padding: '8px 12px' }}>{config.title}</Text>
+              </div>
+            )}
+            <div className={`widget-content ${isEditMode ? 'with-header' : 'with-header'}`}>
+              {renderWidget(config)}
+            </div>
+            {isEditMode && (
+              <div className="react-resizable-handle react-resizable-handle-se">
+                <CornerBottomRightIcon />
+              </div>
+            )}
+          </div>
+        ))}
+      </ResponsiveGridLayout>
+    </Box>
+  );
+});
+
+DesktopGridLayout.displayName = 'DesktopGridLayout';
+
 const Dashboard: React.FC = () => {
   const [widgetConfig, setWidgetConfig] = useState<WidgetConfig[]>([]);
   const [loading, setLoading] = useState(false);
@@ -82,6 +190,7 @@ const Dashboard: React.FC = () => {
   const [isPulling, setIsPulling] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [lastUpdateTime, setLastUpdateTime] = useState<Date>(new Date());
 
   // Get responsive state
   const { isMobile } = useResponsive();
@@ -298,6 +407,7 @@ const Dashboard: React.FC = () => {
 
   const handleRefresh = () => {
     setLoading(true);
+    setLastUpdateTime(new Date());
     // Refresh config and NINA status along with other data
     fetchConfig();
     fetchNinaConnectionStatus();
@@ -339,7 +449,6 @@ const Dashboard: React.FC = () => {
     try {
       setLoading(true);
       await WidgetService.saveWidgetLayout(widgetConfig);
-      console.log('Layout saved successfully');
     } catch (error) {
       console.error('Failed to save layout:', error);
     } finally {
@@ -489,7 +598,7 @@ const Dashboard: React.FC = () => {
             {ninaConnectionStatus.mockMode && " (MOCK)"}
           </Badge>
           <Text size="2" color="gray">
-            Last Update: {new Date().toLocaleTimeString()}
+            Last Update: {lastUpdateTime.toLocaleTimeString()}
           </Text>
         </Flex>
       </Flex>
@@ -509,72 +618,18 @@ const Dashboard: React.FC = () => {
         </Flex>
       ) : (
         /* Desktop Layout - React Grid Layout */
-        <Box style={{ padding: '1.5rem' }}>
-          {layoutLoading ? (
-            <Flex align="center" justify="center" style={{ minHeight: '400px' }}>
-              <ReloadIcon className="loading-spinner" />
-              <Text ml="2">Loading layout...</Text>
-            </Flex>
-          ) : (
-            <ResponsiveGridLayout
-              {...gridLayoutProps}
-              {...responsiveProps}
-              layouts={{
-                lg: getGridLayout(isEditMode ? widgetConfig : widgetConfig.filter(w => w.enabled !== false)),
-                md: getGridLayout(isEditMode ? widgetConfig : widgetConfig.filter(w => w.enabled !== false)),
-                sm: getGridLayout(isEditMode ? widgetConfig : widgetConfig.filter(w => w.enabled !== false)),
-                xs: getGridLayout(isEditMode ? widgetConfig : widgetConfig.filter(w => w.enabled !== false)),
-                xxs: getGridLayout(isEditMode ? widgetConfig : widgetConfig.filter(w => w.enabled !== false))
-              }}
-              onLayoutChange={handleLayoutChange}
-              isDraggable={isEditMode}
-              isResizable={isEditMode}
-              draggableHandle={isEditMode ? ".drag-handle" : ".disabled-drag-handle"}
-              margin={[24, 24]}
-              containerPadding={[0, 0]}
-            >
-              {(isEditMode ? widgetConfig : widgetConfig.filter(w => w.enabled !== false)).map((config) => (
-                <div key={config.layout.i} className={`widget-container ${isEditMode ? 'edit-mode' : 'view-mode'} ${!config.enabled && isEditMode ? 'widget-hidden' : ''}`}>
-                  {isEditMode && (
-                    <div className="drag-handle">
-                      <Flex align="center" gap="2" justify="between">
-                        <Flex align="center" gap="2">
-                          <DragHandleDots2Icon width="14" height="14" />
-                          <Text size="2" weight="medium">{config.title}</Text>
-                        </Flex>
-                        <Button
-                          size="1"
-                          variant="ghost"
-                          color={config.enabled !== false ? "gray" : "red"}
-                          onClick={(e) => handleToggleWidgetVisibility(config.id, config.enabled !== false, e)}
-                          onMouseDown={(e) => e.stopPropagation()}
-                          onPointerDown={(e) => e.stopPropagation()}
-                          style={{ cursor: 'pointer' }}
-                        >
-                          {config.enabled !== false ? <EyeOpenIcon width="14" height="14" /> : <EyeClosedIcon width="14" height="14" />}
-                        </Button>
-                      </Flex>
-                    </div>
-                  )}
-                  {!isEditMode && (
-                    <div className="widget-header">
-                      <Text size="2" weight="medium" style={{ padding: '8px 12px' }}>{config.title}</Text>
-                    </div>
-                  )}
-                  <div className={`widget-content ${isEditMode ? 'with-header' : 'with-header'}`}>
-                    {renderWidget(config)}
-                  </div>
-                  {isEditMode && (
-                    <div className="react-resizable-handle react-resizable-handle-se">
-                      <CornerBottomRightIcon />
-                    </div>
-                  )}
-                </div>
-              ))}
-            </ResponsiveGridLayout>
-          )}
-        </Box>
-      )}      {/* Settings Modal */}
+        <DesktopGridLayout
+          widgetConfig={widgetConfig}
+          isEditMode={isEditMode}
+          layoutLoading={layoutLoading}
+          gridLayoutProps={gridLayoutProps}
+          responsiveProps={responsiveProps}
+          handleLayoutChange={handleLayoutChange}
+          renderWidget={renderWidget}
+          handleToggleWidgetVisibility={handleToggleWidgetVisibility}
+        />
+      )}
+      {/* Settings Modal */}
       <SettingsModal
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}

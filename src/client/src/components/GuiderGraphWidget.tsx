@@ -26,6 +26,7 @@ const GuiderGraphWidget: React.FC<GuiderGraphWidgetProps> = ({
   hideHeader = false 
 }) => {
   const [guiderService, setGuiderService] = useState<GuiderService | null>(null);
+  const guiderServiceRef = useRef<GuiderService | null>(null);
   const [state, setState] = useState<GuiderState>({
     data: null,
     loading: true,
@@ -71,11 +72,12 @@ const GuiderGraphWidget: React.FC<GuiderGraphWidgetProps> = ({
           }
         });
         
-        // Subscribe to guider events for logging
+        // Subscribe to guider events
         service.onEvent((event: GuiderEventData) => {
-          console.log(`🎯 Guider event in widget: ${event.type}`);
+          // Event received — no-op in production, state updates via onStateChange
         });
         
+        guiderServiceRef.current = service;
         setGuiderService(service);
         setConfigLoaded(true);
         
@@ -90,6 +92,7 @@ const GuiderGraphWidget: React.FC<GuiderGraphWidgetProps> = ({
           service.onStateChange((newState) => {
             if (isMounted) setState(newState);
           });
+          guiderServiceRef.current = service;
           setGuiderService(service);
           setConfigLoaded(true);
           await service.initialize();
@@ -99,11 +102,12 @@ const GuiderGraphWidget: React.FC<GuiderGraphWidgetProps> = ({
 
     loadConfigAndInitialize();
 
-    // Cleanup on unmount
+    // Cleanup on unmount — use ref to get current service instance
     return () => {
       isMounted = false;
-      if (guiderService) {
-        guiderService.destroy();
+      if (guiderServiceRef.current) {
+        guiderServiceRef.current.destroy();
+        guiderServiceRef.current = null;
       }
     };
   }, []); // Empty dependency array - run once on mount
@@ -143,11 +147,6 @@ const GuiderGraphWidget: React.FC<GuiderGraphWidgetProps> = ({
       }
     }
   }, [lastUpdate, unifiedState?.currentSession?.guiding?.isGuiding, guiderService]);
-
-  // Configuration changes handled via manual refresh only
-  useEffect(() => {
-    if (!configLoaded || !guiderService) return;
-  }, [configLoaded, guiderService]);
 
   // Manual refresh handler
   const handleRefresh = async () => {

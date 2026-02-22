@@ -58,7 +58,7 @@ const TimeAstronomicalWidget: React.FC<TimeAstronomicalWidgetProps> = ({
     }, 1000);
     
     return () => clearInterval(interval);
-  }, [data]); // Re-sync when data updates
+  }, []); // No deps — runs once, doesn't need to restart on data refresh
 
   // Auto-refresh data every 30 minutes
   useEffect(() => {
@@ -69,12 +69,13 @@ const TimeAstronomicalWidget: React.FC<TimeAstronomicalWidgetProps> = ({
     return () => clearInterval(refreshInterval);
   }, []);
 
-  // Calculate phases for 8-hour window - memoized to prevent excessive recalculation
+  // Calculate phases for 8-hour window - recalculate only when data changes or once per minute
+  const minuteBucket = Math.floor(Date.now() / 60000);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const phases = useMemo(() => {
     if (!data) return [];
     return phaseCalculator.calculatePhases(data, currentTime);
-  }, [data, currentTime, Math.floor(Date.now() / (60 * 1000))]); // Recalculate every minute
+  }, [data, minuteBucket]); // Only recalculate when data changes or minute ticks over
 
   // Loading state
   if (loading) {
@@ -259,4 +260,4 @@ const TimeAstronomicalWidget: React.FC<TimeAstronomicalWidgetProps> = ({
   );
 };
 
-export default TimeAstronomicalWidget;
+export default React.memo(TimeAstronomicalWidget);
